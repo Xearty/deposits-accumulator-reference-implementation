@@ -44,11 +44,15 @@ struct BoundsData {
     bool counted;
 };
 
+struct AccumulatedData {
+    u64 balance;
+    ValidatorStats validator_stats;
+};
+
 struct Node {
     BoundsData leftmost;
     BoundsData rightmost;
-    u64 accumulated_balance;
-    ValidatorStats validator_stats;
+    AccumulatedData accumulated;
 };
 
 static void debug_print_node(const Node& node) {
@@ -58,10 +62,10 @@ static void debug_print_node(const Node& node) {
     std::cout << "balance: {" << node.leftmost.validator.balance << ", " << node.rightmost.validator.balance << "}, ";
     std::cout << "counted: {" << node.leftmost.counted << ", " << node.rightmost.counted << "}, ";
     std::cout << "}, ";
-    std::cout << "accumulated_balance: " << node.accumulated_balance << ", ";
-    std::cout << "validator_stats: {" << node.validator_stats.non_activated_validators_count;
-    std::cout << ", " << node.validator_stats.active_validators_count;
-    std::cout << ", " << node.validator_stats.exited_validators_count;
+    std::cout << "accumulated_balance: " << node.accumulated.balance << ", ";
+    std::cout << "validator_stats: {" << node.accumulated.validator_stats.non_activated_validators_count;
+    std::cout << ", " << node.accumulated.validator_stats.active_validators_count;
+    std::cout << ", " << node.accumulated.validator_stats.exited_validators_count;
     std::cout << "}";
 }
 

@@ -31,12 +31,14 @@ Node create_leaf_node(Pubkey pubkey, u64 deposit_index, u64 balance, bool signat
     return Node {
         .leftmost = bounds_data,
         .rightmost = bounds_data,
-        .accumulated_balance = signature_is_valid ? balance : 0,
-        .validator_stats = {
-            .non_activated_validators_count = non_activated_validators_count && signature_is_valid,
-            .active_validators_count = active_validators_count && signature_is_valid,
-            .exited_validators_count = exited_validators_count && signature_is_valid,
-        }
+        .accumulated = AccumulatedData {
+            .balance = signature_is_valid ? balance : 0,
+            .validator_stats = {
+                .non_activated_validators_count = non_activated_validators_count && signature_is_valid,
+                .active_validators_count = active_validators_count && signature_is_valid,
+                .exited_validators_count = exited_validators_count && signature_is_valid,
+            }
+        },
     };
 }
 
@@ -78,26 +80,26 @@ void update_counted_data(Node& node, const Node& left, const Node& right) {
 
 void account_for_double_counting(Node& node, const Node& left, const Node& right) {
     if (pubkeys_are_same_and_are_counted(left.rightmost, right.leftmost)) {
-        node.accumulated_balance -= left.rightmost.validator.balance;
+        node.accumulated.balance -= left.rightmost.validator.balance;
 
-        node.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[NON_ACTIVATED_VALIDATORS_COUNT_BIT];
-        node.validator_stats.active_validators_count -= left.rightmost.validator.status_bits[ACTIVE_VALIDATORS_COUNT_BIT];
-        node.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[EXITED_VALIDATORS_COUNT_BIT];
+        node.accumulated.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[NON_ACTIVATED_VALIDATORS_COUNT_BIT];
+        node.accumulated.validator_stats.active_validators_count -= left.rightmost.validator.status_bits[ACTIVE_VALIDATORS_COUNT_BIT];
+        node.accumulated.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[EXITED_VALIDATORS_COUNT_BIT];
     }
 }
 
 void accumulate_data(Node& node, const Node& left, const Node& right) {
-    node.accumulated_balance = left.accumulated_balance + right.accumulated_balance;
-    node.validator_stats = {
+    node.accumulated.balance = left.accumulated.balance + right.accumulated.balance;
+    node.accumulated.validator_stats = {
         .non_activated_validators_count =
-            left.validator_stats.non_activated_validators_count +
-            right.validator_stats.non_activated_validators_count,
+            left.accumulated.validator_stats.non_activated_validators_count +
+            right.accumulated.validator_stats.non_activated_validators_count,
         .active_validators_count =
-            left.validator_stats.active_validators_count +
-            right.validator_stats.active_validators_count,
+            left.accumulated.validator_stats.active_validators_count +
+            right.accumulated.validator_stats.active_validators_count,
         .exited_validators_count =
-            left.validator_stats.exited_validators_count +
-            right.validator_stats.exited_validators_count,
+            left.accumulated.validator_stats.exited_validators_count +
+            right.accumulated.validator_stats.exited_validators_count,
     };
 }
 
@@ -159,12 +161,12 @@ int main() {
     const auto exited = ValidatorEpochData { CURRENT_EPOCH - 1, CURRENT_EPOCH };
 
     push_deposits_with_pubkey<5>(leaves, 1, 10, {0, 1, 1, 0, 1}, active);
-    push_deposits_with_pubkey<1>(leaves, 2, 10, {1}, active);
-    push_deposits_with_pubkey<2>(leaves, 3, 10, {1, 1}, active);
-    push_deposits_with_pubkey<2>(leaves, 4, 10, {1, 1}, exited);
-    push_deposits_with_pubkey<2>(leaves, 5, 10, {1, 1}, active);
-    push_deposits_with_pubkey<1>(leaves, 6, 10, {1}, active);
-    push_deposits_with_pubkey<3>(leaves, 7, 10, {1, 1, 1}, active);
+    push_deposits_with_pubkey<1>(leaves, 2, 10, {1},             active);
+    push_deposits_with_pubkey<2>(leaves, 3, 10, {1, 1},          active);
+    push_deposits_with_pubkey<2>(leaves, 4, 10, {1, 1},          exited);
+    push_deposits_with_pubkey<2>(leaves, 5, 10, {1, 1},          active);
+    push_deposits_with_pubkey<1>(leaves, 6, 10, {1},             active);
+    push_deposits_with_pubkey<3>(leaves, 7, 10, {1, 1, 1},       active);
 
     auto tree = build_binary_tree(leaves);
     for (const auto& level : tree) {
