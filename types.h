@@ -16,9 +16,9 @@ using Pubkey = uint64_t;
 using u64 = uint64_t;
 
 enum VALIDATOR_STATUS_BITS {
-    NON_ACTIVATED_VALIDATORS_COUNT,
-    ACTIVE_VALIDATORS_COUNT,
-    EXITED_VALIDATORS_COUNT,
+    NON_ACTIVATED_VALIDATORS_COUNT_BIT,
+    ACTIVE_VALIDATORS_COUNT_BIT,
+    EXITED_VALIDATORS_COUNT_BIT,
 };
 
 struct ValidatorEpochData {
@@ -38,15 +38,15 @@ struct ValidatorData {
     Bitset<3> status_bits;
 };
 
-struct Data {
+struct BoundsData {
     ValidatorData validator;
     u64 deposit_index;
     bool counted;
 };
 
 struct Node {
-    Data leftmost;
-    Data rightmost;
+    BoundsData leftmost;
+    BoundsData rightmost;
     u64 accumulated_balance;
     ValidatorStats validator_stats;
 };

@@ -14,11 +14,11 @@ Node create_leaf_node(Pubkey pubkey, u64 deposit_index, u64 balance, bool signat
     u64 exited_validators_count = CURRENT_EPOCH >= epoch_data.exit_epoch;
 
     Bitset<3> validator_status_bits;
-    validator_status_bits.set(NON_ACTIVATED_VALIDATORS_COUNT, non_activated_validators_count);
-    validator_status_bits.set(ACTIVE_VALIDATORS_COUNT, active_validators_count);
-    validator_status_bits.set(EXITED_VALIDATORS_COUNT, exited_validators_count);
+    validator_status_bits.set(NON_ACTIVATED_VALIDATORS_COUNT_BIT, non_activated_validators_count);
+    validator_status_bits.set(ACTIVE_VALIDATORS_COUNT_BIT, active_validators_count);
+    validator_status_bits.set(EXITED_VALIDATORS_COUNT_BIT, exited_validators_count);
 
-     Data data {
+    BoundsData bounds_data {
         ValidatorData {
             pubkey,
             balance,
@@ -29,25 +29,25 @@ Node create_leaf_node(Pubkey pubkey, u64 deposit_index, u64 balance, bool signat
     };
 
     return Node {
-        .leftmost = data,
-        .rightmost = data,
+        .leftmost = bounds_data,
+        .rightmost = bounds_data,
         .accumulated_balance = signature_is_valid ? balance : 0,
         .validator_stats = {
-        .non_activated_validators_count = non_activated_validators_count && signature_is_valid,
-        .active_validators_count = active_validators_count && signature_is_valid,
-        .exited_validators_count = exited_validators_count && signature_is_valid,
+            .non_activated_validators_count = non_activated_validators_count && signature_is_valid,
+            .active_validators_count = active_validators_count && signature_is_valid,
+            .exited_validators_count = exited_validators_count && signature_is_valid,
         }
     };
 }
-bool has_same_pubkey_and_is_counted(Pubkey pubkey, const Data& data) {
+
+bool has_same_pubkey_and_is_counted(Pubkey pubkey, const BoundsData& data) {
     return pubkey == data.validator.pubkey && data.counted;
 }
 
-bool pubkeys_are_same_and_are_counted(const Data& first, const Data& second) {
+bool pubkeys_are_same_and_are_counted(const BoundsData& first, const BoundsData& second) {
     bool pubkeys_are_same = first.validator.pubkey == second.validator.pubkey;
     bool both_are_counted = first.counted && second.counted;
     return pubkeys_are_same && both_are_counted;
-
 }
 
 void inherit_bounds_data_from_children(Node& node, const Node& left, const Node& right) {
@@ -80,9 +80,9 @@ void account_for_double_counting(Node& node, const Node& left, const Node& right
     if (pubkeys_are_same_and_are_counted(left.rightmost, right.leftmost)) {
         node.accumulated_balance -= left.rightmost.validator.balance;
 
-        node.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[NON_ACTIVATED_VALIDATORS_COUNT];
-        node.validator_stats.active_validators_count -= left.rightmost.validator.status_bits[ACTIVE_VALIDATORS_COUNT];
-        node.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[EXITED_VALIDATORS_COUNT];
+        node.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[NON_ACTIVATED_VALIDATORS_COUNT_BIT];
+        node.validator_stats.active_validators_count -= left.rightmost.validator.status_bits[ACTIVE_VALIDATORS_COUNT_BIT];
+        node.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[EXITED_VALIDATORS_COUNT_BIT];
     }
 }
 
@@ -154,17 +154,17 @@ void push_deposits_with_pubkey(
 int main() {
     Vec<Node> leaves;
 
-    const auto active_data = ValidatorEpochData { CURRENT_EPOCH, CURRENT_EPOCH + 1 };
-    const auto non_activated_data = ValidatorEpochData { CURRENT_EPOCH + 1, FAR_AWAY_EPOCH };
-    const auto exited_data = ValidatorEpochData { CURRENT_EPOCH - 1, CURRENT_EPOCH };
+    const auto active = ValidatorEpochData { CURRENT_EPOCH, CURRENT_EPOCH + 1 };
+    const auto non_activated = ValidatorEpochData { CURRENT_EPOCH + 1, FAR_AWAY_EPOCH };
+    const auto exited = ValidatorEpochData { CURRENT_EPOCH - 1, CURRENT_EPOCH };
 
-    push_deposits_with_pubkey<5>(leaves, 1, 10, {0, 1, 1, 0, 1}, active_data);
-    push_deposits_with_pubkey<1>(leaves, 2, 10, {1}, active_data);
-    push_deposits_with_pubkey<2>(leaves, 3, 10, {1, 1}, active_data);
-    push_deposits_with_pubkey<2>(leaves, 4, 10, {1, 1}, non_activated_data);
-    push_deposits_with_pubkey<2>(leaves, 5, 10, {1, 1}, active_data);
-    push_deposits_with_pubkey<1>(leaves, 6, 10, {1}, active_data);
-    push_deposits_with_pubkey<3>(leaves, 7, 10, {1, 1, 1}, active_data);
+    push_deposits_with_pubkey<5>(leaves, 1, 10, {0, 1, 1, 0, 1}, active);
+    push_deposits_with_pubkey<1>(leaves, 2, 10, {1}, active);
+    push_deposits_with_pubkey<2>(leaves, 3, 10, {1, 1}, active);
+    push_deposits_with_pubkey<2>(leaves, 4, 10, {1, 1}, exited);
+    push_deposits_with_pubkey<2>(leaves, 5, 10, {1, 1}, active);
+    push_deposits_with_pubkey<1>(leaves, 6, 10, {1}, active);
+    push_deposits_with_pubkey<3>(leaves, 7, 10, {1, 1, 1}, active);
 
     auto tree = build_binary_tree(leaves);
     for (const auto& level : tree) {
@@ -175,6 +175,4 @@ int main() {
         std::cout << '\n';
     }
 }
-
-
 
