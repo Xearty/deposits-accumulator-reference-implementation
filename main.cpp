@@ -5,7 +5,10 @@
 
 #include "types.h"
 
+// NOTE: these are passed to the first level circuit and are not propagated
 const u64 CURRENT_EPOCH = 100;
+const u64 ETH1_DATA_DEPOSIT_COUNT = 16;
+
 const u64 FAR_AWAY_EPOCH = -1;
 
 Node create_leaf_node(Pubkey pubkey, u64 deposit_index, u64 balance, bool signature_is_valid, ValidatorEpochData epoch_data) {
@@ -18,6 +21,10 @@ Node create_leaf_node(Pubkey pubkey, u64 deposit_index, u64 balance, bool signat
     validator_status_bits.set(ACTIVE_VALIDATORS_COUNT_BIT, active_validators_count);
     validator_status_bits.set(EXITED_VALIDATORS_COUNT_BIT, exited_validators_count);
 
+
+    bool deposit_is_processed = ETH1_DATA_DEPOSIT_COUNT >= deposit_index;
+    bool validator_is_definitely_in_chain = signature_is_valid && deposit_is_processed;
+
     BoundsData bounds_data {
         ValidatorData {
             pubkey,
@@ -25,20 +32,24 @@ Node create_leaf_node(Pubkey pubkey, u64 deposit_index, u64 balance, bool signat
             validator_status_bits,
         },
         deposit_index,
-        signature_is_valid,
+        validator_is_definitely_in_chain,
     };
+
+    AccumulatedData accumulated = validator_is_definitely_in_chain
+        ? AccumulatedData {
+            .balance = balance,
+            .validator_stats = {
+                .non_activated_validators_count = non_activated_validators_count,
+                .active_validators_count = active_validators_count,
+                .exited_validators_count = exited_validators_count,
+            }
+        }
+        : AccumulatedData {};
 
     return Node {
         .leftmost = bounds_data,
         .rightmost = bounds_data,
-        .accumulated = AccumulatedData {
-            .balance = signature_is_valid ? balance : 0,
-            .validator_stats = {
-                .non_activated_validators_count = non_activated_validators_count && signature_is_valid,
-                .active_validators_count = active_validators_count && signature_is_valid,
-                .exited_validators_count = exited_validators_count && signature_is_valid,
-            }
-        },
+        .accumulated = accumulated,
         .range = Range {
             .start = deposit_index,
             .size = 1,

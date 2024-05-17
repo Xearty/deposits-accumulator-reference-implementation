@@ -26,12 +26,6 @@ struct ValidatorEpochData {
     u64 exit_epoch;
 };
 
-struct ValidatorStats {
-    u64 non_activated_validators_count = 0;
-    u64 active_validators_count = 0;
-    u64 exited_validators_count = 0;
-};
-
 struct ValidatorData {
     Pubkey pubkey;
     u64 balance;
@@ -42,6 +36,12 @@ struct BoundsData {
     ValidatorData validator;
     u64 deposit_index;
     bool counted;
+};
+
+struct ValidatorStats {
+    u64 non_activated_validators_count;
+    u64 active_validators_count;
+    u64 exited_validators_count;
 };
 
 struct AccumulatedData {
