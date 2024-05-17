@@ -39,6 +39,10 @@ Node create_leaf_node(Pubkey pubkey, u64 deposit_index, u64 balance, bool signat
                 .exited_validators_count = exited_validators_count && signature_is_valid,
             }
         },
+        .range = Range {
+            .start = deposit_index,
+            .size = 1,
+        },
     };
 }
 
@@ -58,6 +62,9 @@ void inherit_bounds_data_from_children(Node& node, const Node& left, const Node&
 
     node.leftmost.deposit_index = left.leftmost.deposit_index;
     node.rightmost.deposit_index = right.rightmost.deposit_index;
+
+    node.range.start = left.range.start;
+    node.range.size = left.range.size + right.range.size;
 }
 
 void update_counted_data(Node& node, const Node& left, const Node& right) {
@@ -110,6 +117,9 @@ Node compute_parent(const Node& left, const Node& right) {
     // ensure all the leaves are sorted by the tuple (pubkey, deposit_index) and deposit indices are unique
     assert(left.leftmost.validator.pubkey <= right.rightmost.validator.pubkey);
     assert(left.leftmost.deposit_index < right.rightmost.deposit_index);
+
+    // check that the ranges are consecutive
+    assert(left.range.start + left.range.size == right.range.start);
 
     inherit_bounds_data_from_children(node, left, right);
     accumulate_data(node, left, right);
