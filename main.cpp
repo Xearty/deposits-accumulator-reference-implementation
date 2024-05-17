@@ -1,107 +1,44 @@
 // clang-format off
 #include <iostream>
-#include <stdint.h>
-#include <algorithm>
-#include <vector>
-#include <utility>
 #include <assert.h>
 #include <bitset>
 
-template <typename T>
-using Vec = std::vector<T>;
-
-template <size_t N>
-using Bitset = std::bitset<N>;
-
-using Pubkey = uint64_t;
-using u64 = uint64_t;
-
-const u64 INVALID_DEPOSIT_INDEX = -1;
+#include "types.h"
 
 const u64 CURRENT_EPOCH = 100;
 const u64 FAR_AWAY_EPOCH = -1;
 
-enum VALIDATOR_STATUS_BITS {
-    NON_ACTIVATED_VALIDATORS_COUNT,
-    ACTIVE_VALIDATORS_COUNT,
-    EXITED_VALIDATORS_COUNT,
-};
+Node create_leaf_node(Pubkey pubkey, u64 deposit_index, u64 balance, bool signature_is_valid, ValidatorEpochData epoch_data) {
+    u64 non_activated_validators_count = CURRENT_EPOCH < epoch_data.activation_epoch;
+    u64 active_validators_count = CURRENT_EPOCH >= epoch_data.activation_epoch && CURRENT_EPOCH < epoch_data.exit_epoch;
+    u64 exited_validators_count = CURRENT_EPOCH >= epoch_data.exit_epoch;
 
-struct ValidatorEpochData {
-    u64 activation_epoch;
-    u64 exit_epoch;
-};
+    Bitset<3> validator_status_bits;
+    validator_status_bits.set(NON_ACTIVATED_VALIDATORS_COUNT, non_activated_validators_count);
+    validator_status_bits.set(ACTIVE_VALIDATORS_COUNT, active_validators_count);
+    validator_status_bits.set(EXITED_VALIDATORS_COUNT, exited_validators_count);
 
-struct ValidatorStats {
-    u64 non_activated_validators_count = 0;
-    u64 active_validators_count = 0;
-    u64 exited_validators_count = 0;
-};
+     Data data {
+        ValidatorData {
+            pubkey,
+            balance,
+            validator_status_bits,
+        },
+        deposit_index,
+        signature_is_valid,
+    };
 
-struct ValidatorData {
-    Pubkey pubkey;
-    u64 balance;
-    Bitset<3> status_bits;
-};
-
-struct Data {
-    ValidatorData validator;
-    u64 deposit_index;
-    bool counted;
-};
-
-struct Node {
-    Data leftmost;
-    Data rightmost;
-    u64 accumulated_balance;
-    ValidatorStats validator_stats;
-
-    Node() = default;
-
-    explicit Node(Pubkey pubkey, u64 deposit_index, u64 balance, bool signature_is_valid, ValidatorEpochData epoch_data) {
-        this->accumulated_balance = signature_is_valid ? balance : 0;
-
-        u64 non_activated_validators_count = CURRENT_EPOCH < epoch_data.activation_epoch;
-        u64 active_validators_count = CURRENT_EPOCH >= epoch_data.activation_epoch && CURRENT_EPOCH < epoch_data.exit_epoch;
-        u64 exited_validators_count = CURRENT_EPOCH >= epoch_data.exit_epoch;
-
-        this->validator_stats = {
-            .non_activated_validators_count = non_activated_validators_count && signature_is_valid,
-            .active_validators_count = active_validators_count && signature_is_valid,
-            .exited_validators_count = exited_validators_count && signature_is_valid,
-        };
-
-        Bitset<3> validator_status_bits;
-        validator_status_bits.set(NON_ACTIVATED_VALIDATORS_COUNT, non_activated_validators_count);
-        validator_status_bits.set(ACTIVE_VALIDATORS_COUNT, active_validators_count);
-        validator_status_bits.set(EXITED_VALIDATORS_COUNT, exited_validators_count);
-
-        this->leftmost = this->rightmost = Data {
-            ValidatorData {
-                pubkey,
-                balance,
-                validator_status_bits,
-            },
-            deposit_index,
-            signature_is_valid,
-        };
-    }
-};
-
-void debug_print_node(const Node& node) {
-    std::cout << "data: {";
-    std::cout << "pubkeys: {" << node.leftmost.validator.pubkey << ", " << node.rightmost.validator.pubkey << "}, ";
-    std::cout << "deposit_index: {" << node.leftmost.deposit_index << ", " << node.rightmost.deposit_index << "}, ";
-    std::cout << "balance: {" << node.leftmost.validator.balance << ", " << node.rightmost.validator.balance << "}, ";
-    std::cout << "counted: {" << node.leftmost.counted << ", " << node.rightmost.counted << "}, ";
-    std::cout << "}, ";
-    std::cout << "accumulated_balance: " << node.accumulated_balance << ", ";
-    std::cout << "validator_stats: {" << node.validator_stats.non_activated_validators_count;
-    std::cout << ", " << node.validator_stats.active_validators_count;
-    std::cout << ", " << node.validator_stats.exited_validators_count;
-    std::cout << "}";
+    return Node {
+        .leftmost = data,
+        .rightmost = data,
+        .accumulated_balance = signature_is_valid ? balance : 0,
+        .validator_stats = {
+        .non_activated_validators_count = non_activated_validators_count && signature_is_valid,
+        .active_validators_count = active_validators_count && signature_is_valid,
+        .exited_validators_count = exited_validators_count && signature_is_valid,
+        }
+    };
 }
-
 bool has_same_pubkey_and_is_counted(Pubkey pubkey, const Data& data) {
     return pubkey == data.validator.pubkey && data.counted;
 }
@@ -167,7 +104,7 @@ void accumulate_data(Node& node, const Node& left, const Node& right) {
 Node compute_parent(const Node& left, const Node& right) {
     Node node;
 
-    // ensure all the leaves are sorted by the tupple (pubkey, deposit_index)
+    // ensure all the leaves are sorted by the tuple (pubkey, deposit_index) and deposit indices are unique
     assert(left.leftmost.validator.pubkey <= right.rightmost.validator.pubkey);
     assert(left.leftmost.deposit_index < right.rightmost.deposit_index);
 
@@ -209,7 +146,8 @@ void push_deposits_with_pubkey(
 ) {
     for (size_t i = 0; i < N; ++i) {
         auto deposit_index = deposits.size();
-        deposits.push_back(Node(pubkey, deposit_index, balance, valid_signature_bitmask[i], epoch_data));
+        Node leaf = create_leaf_node(pubkey, deposit_index, balance, valid_signature_bitmask[i], epoch_data);
+        deposits.push_back(leaf);
     }
 }
 
@@ -223,7 +161,7 @@ int main() {
     push_deposits_with_pubkey<5>(leaves, 1, 10, {0, 1, 1, 0, 1}, active_data);
     push_deposits_with_pubkey<1>(leaves, 2, 10, {1}, active_data);
     push_deposits_with_pubkey<2>(leaves, 3, 10, {1, 1}, active_data);
-    push_deposits_with_pubkey<2>(leaves, 4, 10, {1, 1}, active_data);
+    push_deposits_with_pubkey<2>(leaves, 4, 10, {1, 1}, non_activated_data);
     push_deposits_with_pubkey<2>(leaves, 5, 10, {1, 1}, active_data);
     push_deposits_with_pubkey<1>(leaves, 6, 10, {1}, active_data);
     push_deposits_with_pubkey<3>(leaves, 7, 10, {1, 1, 1}, active_data);
