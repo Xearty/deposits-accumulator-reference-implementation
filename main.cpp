@@ -21,7 +21,6 @@ Node create_leaf_node(Pubkey pubkey, u64 deposit_index, u64 balance, bool signat
     validator_status_bits.set(ACTIVE_VALIDATORS_COUNT_BIT, active_validators_count);
     validator_status_bits.set(EXITED_VALIDATORS_COUNT_BIT, exited_validators_count);
 
-
     bool deposit_is_processed = ETH1_DATA_DEPOSIT_COUNT >= deposit_index;
     bool validator_is_definitely_in_chain = signature_is_valid && deposit_is_processed;
 
@@ -119,12 +118,16 @@ void accumulate_data(Node& node, const Node& left, const Node& right) {
     };
 }
 
+bool is_zero_proof(const Node& node) {
+    return node.leftmost.validator.pubkey == 0;
+}
+
 Node compute_parent(const Node& left, const Node& right) {
     Node node;
 
     // ensure all the leaves are sorted by the tuple (pubkey, deposit_index) and deposit indices are unique
-    assert(left.leftmost.validator.pubkey <= right.rightmost.validator.pubkey);
-    assert(left.leftmost.deposit_index < right.rightmost.deposit_index);
+    assert(left.rightmost.validator.pubkey <= right.leftmost.validator.pubkey || is_zero_proof(right));
+    assert(left.rightmost.deposit_index < right.leftmost.deposit_index || is_zero_proof(right));
 
     // check that the ranges are consecutive
     assert(left.range.start + left.range.size == right.range.start);
@@ -177,12 +180,13 @@ void push_deposits_with_pubkey(
 }
 
 int main() {
-    Vec<Node> leaves;
-
     const auto active = ValidatorEpochData { CURRENT_EPOCH, CURRENT_EPOCH + 1 };
     const auto non_activated = ValidatorEpochData { CURRENT_EPOCH + 1, FAR_AWAY_EPOCH };
     const auto exited = ValidatorEpochData { CURRENT_EPOCH - 1, CURRENT_EPOCH };
 
+    bool invalid_16[16] = {};
+
+    Vec<Node> leaves;
     push_deposits_with_pubkey<5>(leaves, 1, 10, {0, 1, 1, 0, 1}, active);
     push_deposits_with_pubkey<1>(leaves, 2, 10, {1},             active);
     push_deposits_with_pubkey<2>(leaves, 3, 10, {1, 1},          active);
@@ -190,6 +194,7 @@ int main() {
     push_deposits_with_pubkey<2>(leaves, 5, 10, {1, 1},          active);
     push_deposits_with_pubkey<1>(leaves, 6, 10, {1},             active);
     push_deposits_with_pubkey<3>(leaves, 7, 10, {1, 1, 1},       non_activated);
+    push_deposits_with_pubkey<16>(leaves, 0, 0, invalid_16,      non_activated);
 
     auto tree = build_binary_tree(leaves);
     for (const auto& level : tree) {
