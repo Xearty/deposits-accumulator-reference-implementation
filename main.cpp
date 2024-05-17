@@ -84,12 +84,13 @@ void account_for_double_counting(Node& node, const Node& left, const Node& right
 
         node.accumulated.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[NON_ACTIVATED_VALIDATORS_COUNT_BIT];
         node.accumulated.validator_stats.active_validators_count -= left.rightmost.validator.status_bits[ACTIVE_VALIDATORS_COUNT_BIT];
-        node.accumulated.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[EXITED_VALIDATORS_COUNT_BIT];
+        node.accumulated.validator_stats.exited_validators_count -= left.rightmost.validator.status_bits[EXITED_VALIDATORS_COUNT_BIT];
     }
 }
 
 void accumulate_data(Node& node, const Node& left, const Node& right) {
     node.accumulated.balance = left.accumulated.balance + right.accumulated.balance;
+
     node.accumulated.validator_stats = {
         .non_activated_validators_count =
             left.accumulated.validator_stats.non_activated_validators_count +
@@ -166,7 +167,7 @@ int main() {
     push_deposits_with_pubkey<2>(leaves, 4, 10, {1, 1},          exited);
     push_deposits_with_pubkey<2>(leaves, 5, 10, {1, 1},          active);
     push_deposits_with_pubkey<1>(leaves, 6, 10, {1},             active);
-    push_deposits_with_pubkey<3>(leaves, 7, 10, {1, 1, 1},       active);
+    push_deposits_with_pubkey<3>(leaves, 7, 10, {1, 1, 1},       non_activated);
 
     auto tree = build_binary_tree(leaves);
     for (const auto& level : tree) {
