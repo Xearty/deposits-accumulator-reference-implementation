@@ -38,60 +38,61 @@ struct ValidatorStats {
     u64 exited_validators_count = 0;
 };
 
-// struct ValidatorData {
-//     u64 balance;
-//     u64 activation_epoch;
-//     u64 exit_epoch;
-// };
+struct ValidatorData {
+    Pubkey pubkey;
+    u64 balance;
+    Bitset<3> status_bits;
+};
 
 struct Data {
-    Pubkey pubkey;
+    ValidatorData validator;
     u64 deposit_index;
-    u64 balance;
     bool counted;
-    Bitset<3> validator_status_bits;
 };
 
 struct Node {
     Data leftmost;
     Data rightmost;
     u64 accumulated_balance;
-    ValidatorStats validator_stats; // TODO: this part is missing
+    ValidatorStats validator_stats;
 
     Node() = default;
 
     explicit Node(Pubkey pubkey, u64 deposit_index, u64 balance, bool signature_is_valid, ValidatorEpochData epoch_data) {
-        // bool should_be_counted = signature_is_valid; // TODO: eth1_data.deposit_count
-
-
         this->accumulated_balance = signature_is_valid ? balance : 0;
 
+        u64 non_activated_validators_count = CURRENT_EPOCH < epoch_data.activation_epoch;
+        u64 active_validators_count = CURRENT_EPOCH >= epoch_data.activation_epoch && CURRENT_EPOCH < epoch_data.exit_epoch;
+        u64 exited_validators_count = CURRENT_EPOCH >= epoch_data.exit_epoch;
+
         this->validator_stats = {
-            .non_activated_validators_count = CURRENT_EPOCH < epoch_data.activation_epoch, // && should_be_counted,
-            .active_validators_count = CURRENT_EPOCH >= epoch_data.activation_epoch && CURRENT_EPOCH < epoch_data.exit_epoch, // && should_be_counted,
-            .exited_validators_count = CURRENT_EPOCH >= epoch_data.exit_epoch, // && should_be_counted,
+            .non_activated_validators_count = non_activated_validators_count && signature_is_valid,
+            .active_validators_count = active_validators_count && signature_is_valid,
+            .exited_validators_count = exited_validators_count && signature_is_valid,
         };
 
         Bitset<3> validator_status_bits;
-        validator_status_bits.set(NON_ACTIVATED_VALIDATORS_COUNT, this->validator_stats.non_activated_validators_count);
-        validator_status_bits.set(ACTIVE_VALIDATORS_COUNT, this->validator_stats.active_validators_count);
-        validator_status_bits.set(EXITED_VALIDATORS_COUNT, this->validator_stats.exited_validators_count);
+        validator_status_bits.set(NON_ACTIVATED_VALIDATORS_COUNT, non_activated_validators_count);
+        validator_status_bits.set(ACTIVE_VALIDATORS_COUNT, active_validators_count);
+        validator_status_bits.set(EXITED_VALIDATORS_COUNT, exited_validators_count);
 
         this->leftmost = this->rightmost = Data {
-            pubkey,
+            ValidatorData {
+                pubkey,
+                balance,
+                validator_status_bits,
+            },
             deposit_index,
-            balance,
             signature_is_valid,
-            validator_status_bits,
         };
     }
 };
 
 void debug_print_node(const Node& node) {
     std::cout << "data: {";
-    std::cout << "pubkeys: {" << node.leftmost.pubkey << ", " << node.rightmost.pubkey << "}, ";
+    std::cout << "pubkeys: {" << node.leftmost.validator.pubkey << ", " << node.rightmost.validator.pubkey << "}, ";
     std::cout << "deposit_index: {" << node.leftmost.deposit_index << ", " << node.rightmost.deposit_index << "}, ";
-    std::cout << "balance: {" << node.leftmost.balance << ", " << node.rightmost.balance << "}, ";
+    std::cout << "balance: {" << node.leftmost.validator.balance << ", " << node.rightmost.validator.balance << "}, ";
     std::cout << "counted: {" << node.leftmost.counted << ", " << node.rightmost.counted << "}, ";
     std::cout << "}, ";
     std::cout << "accumulated_balance: " << node.accumulated_balance << ", ";
@@ -102,26 +103,27 @@ void debug_print_node(const Node& node) {
 }
 
 bool has_same_pubkey_and_is_counted(Pubkey pubkey, const Data& data) {
-    return pubkey == data.pubkey && data.counted;
+    return pubkey == data.validator.pubkey && data.counted;
+}
+
+bool pubkeys_are_same_and_are_counted(const Data& first, const Data& second) {
+    bool pubkeys_are_same = first.validator.pubkey == second.validator.pubkey;
+    bool both_are_counted = first.counted && second.counted;
+    return pubkeys_are_same && both_are_counted;
+
 }
 
 void inherit_bounds_data_from_children(Node& node, const Node& left, const Node& right) {
-    node.leftmost.pubkey = left.leftmost.pubkey;
-    node.rightmost.pubkey = right.rightmost.pubkey;
+    node.leftmost.validator = left.leftmost.validator;
+    node.rightmost.validator = right.rightmost.validator;
 
     node.leftmost.deposit_index = left.leftmost.deposit_index;
     node.rightmost.deposit_index = right.rightmost.deposit_index;
-
-    node.leftmost.balance = left.leftmost.balance;
-    node.rightmost.balance = right.rightmost.balance;
-
-    node.leftmost.validator_status_bits = left.leftmost.validator_status_bits;
-    node.rightmost.validator_status_bits = right.rightmost.validator_status_bits;
 }
 
 void update_counted_data(Node& node, const Node& left, const Node& right) {
-    Pubkey leftmost_pubkey = left.leftmost.pubkey;
-    Pubkey rightmost_pubkey = right.rightmost.pubkey;
+    Pubkey leftmost_pubkey = left.leftmost.validator.pubkey;
+    Pubkey rightmost_pubkey = right.rightmost.validator.pubkey;
 
     bool leftmost_counted = left.leftmost.counted;
     leftmost_counted |= has_same_pubkey_and_is_counted(leftmost_pubkey, left.rightmost);
@@ -138,24 +140,27 @@ void update_counted_data(Node& node, const Node& left, const Node& right) {
 }
 
 void account_for_double_counting(Node& node, const Node& left, const Node& right) {
-    if (left.rightmost.counted && has_same_pubkey_and_is_counted(left.rightmost.pubkey, right.leftmost)) {
-        node.accumulated_balance -= left.rightmost.balance;
+    if (pubkeys_are_same_and_are_counted(left.rightmost, right.leftmost)) {
+        node.accumulated_balance -= left.rightmost.validator.balance;
 
-        // BUG: this doesn't work as expected
-        node.validator_stats.non_activated_validators_count -= left.rightmost.validator_status_bits[NON_ACTIVATED_VALIDATORS_COUNT];
-        node.validator_stats.active_validators_count -= left.rightmost.validator_status_bits[ACTIVE_VALIDATORS_COUNT];
-        node.validator_stats.non_activated_validators_count -= left.rightmost.validator_status_bits[EXITED_VALIDATORS_COUNT];
-
-        std::cout << "bit: " << left.rightmost.validator_status_bits[ACTIVE_VALIDATORS_COUNT] << std::endl;
+        node.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[NON_ACTIVATED_VALIDATORS_COUNT];
+        node.validator_stats.active_validators_count -= left.rightmost.validator.status_bits[ACTIVE_VALIDATORS_COUNT];
+        node.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[EXITED_VALIDATORS_COUNT];
     }
 }
 
 void accumulate_data(Node& node, const Node& left, const Node& right) {
     node.accumulated_balance = left.accumulated_balance + right.accumulated_balance;
     node.validator_stats = {
-        .non_activated_validators_count = left.validator_stats.non_activated_validators_count + right.validator_stats.non_activated_validators_count,
-        .active_validators_count = left.validator_stats.active_validators_count + right.validator_stats.active_validators_count,
-        .exited_validators_count = left.validator_stats.exited_validators_count + right.validator_stats.exited_validators_count,
+        .non_activated_validators_count =
+            left.validator_stats.non_activated_validators_count +
+            right.validator_stats.non_activated_validators_count,
+        .active_validators_count =
+            left.validator_stats.active_validators_count +
+            right.validator_stats.active_validators_count,
+        .exited_validators_count =
+            left.validator_stats.exited_validators_count +
+            right.validator_stats.exited_validators_count,
     };
 }
 
@@ -163,7 +168,7 @@ Node compute_parent(const Node& left, const Node& right) {
     Node node;
 
     // ensure all the leaves are sorted by the tupple (pubkey, deposit_index)
-    assert(left.leftmost.pubkey <= right.rightmost.pubkey);
+    assert(left.leftmost.validator.pubkey <= right.rightmost.validator.pubkey);
     assert(left.leftmost.deposit_index < right.rightmost.deposit_index);
 
     inherit_bounds_data_from_children(node, left, right);
