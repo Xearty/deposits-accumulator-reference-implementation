@@ -73,9 +73,6 @@ void inherit_bounds_data_from_children(Node& node, const Node& left, const Node&
 
     node.leftmost.deposit_index = left.leftmost.deposit_index;
     node.rightmost.deposit_index = right.rightmost.deposit_index;
-
-    node.range.start = left.range.start;
-    node.range.size = left.range.size + right.range.size;
 }
 
 void update_counted_data(Node& node, const Node& left, const Node& right) {
@@ -131,6 +128,10 @@ Node compute_parent(const Node& left, const Node& right) {
 
     // check that the ranges are consecutive
     assert(left.range.start + left.range.size == right.range.start);
+
+    // calculate the new range
+    node.range.start = left.range.start;
+    node.range.size = left.range.size + right.range.size;
 
     inherit_bounds_data_from_children(node, left, right);
     accumulate_data(node, left, right);
