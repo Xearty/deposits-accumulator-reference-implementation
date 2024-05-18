@@ -24,7 +24,7 @@ static Node create_deposit_leaf(Pubkey pubkey, u64 deposit_index, u64 balance, b
             .status_bits = validator_status_bits,
         },
         .deposit_index = deposit_index,
-        .counted = validator_is_definitely_in_chain,
+        .is_counted = validator_is_definitely_in_chain,
         .is_fictional = false,
     };
 

@@ -39,7 +39,7 @@ struct ValidatorData {
 struct BoundsData {
     ValidatorData validator;
     u64 deposit_index;
-    bool counted;
+    bool is_counted;
     bool is_fictional;
 };
 
@@ -67,7 +67,7 @@ static void debug_print_node(const Node& node) {
     std::cout << "pubkeys: {" << node.leftmost.validator.pubkey << ", " << node.rightmost.validator.pubkey << "}, ";
     std::cout << "deposit_index: {" << node.leftmost.deposit_index << ", " << node.rightmost.deposit_index << "}, ";
     std::cout << "balance: {" << node.leftmost.validator.balance << ", " << node.rightmost.validator.balance << "}, ";
-    std::cout << "counted: {" << node.leftmost.counted << ", " << node.rightmost.counted;
+    std::cout << "is_counted: {" << node.leftmost.is_counted << ", " << node.rightmost.is_counted;
     std::cout << "}, ";
     std::cout << "accumulated_balance: " << node.accumulated.balance << ", ";
     std::cout << "validator_stats: {" << node.accumulated.validator_stats.non_activated_validators_count;

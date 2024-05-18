@@ -5,12 +5,12 @@
 #include <assert.h>
 
 static bool has_same_pubkey_and_is_counted(Pubkey pubkey, const BoundsData& data) {
-    return pubkey == data.validator.pubkey && data.counted;
+    return pubkey == data.validator.pubkey && data.is_counted;
 }
 
 static bool pubkeys_are_same_and_are_counted(const BoundsData& first, const BoundsData& second) {
     bool pubkeys_are_same = first.validator.pubkey == second.validator.pubkey;
-    bool both_are_counted = first.counted && second.counted;
+    bool both_are_counted = first.is_counted && second.is_counted;
     return pubkeys_are_same && both_are_counted;
 }
 
@@ -18,12 +18,12 @@ static Tuple<bool, bool> calc_counted_data(const Node& left, const Node& right) 
     Pubkey leftmost_pubkey = left.leftmost.validator.pubkey;
     Pubkey rightmost_pubkey = right.rightmost.validator.pubkey;
 
-    bool leftmost_counted = left.leftmost.counted
+    bool leftmost_counted = left.leftmost.is_counted
         || has_same_pubkey_and_is_counted(leftmost_pubkey, left.rightmost)
         || has_same_pubkey_and_is_counted(leftmost_pubkey, right.leftmost)
         || has_same_pubkey_and_is_counted(leftmost_pubkey, right.rightmost);
 
-    bool rightmost_counted = right.rightmost.counted
+    bool rightmost_counted = right.rightmost.is_counted
         || has_same_pubkey_and_is_counted(rightmost_pubkey, left.leftmost)
         || has_same_pubkey_and_is_counted(rightmost_pubkey, left.rightmost)
         || has_same_pubkey_and_is_counted(rightmost_pubkey, right.leftmost);
@@ -37,20 +37,19 @@ static Tuple<BoundsData, BoundsData> inherit_bounds_data_from_children(const Nod
     BoundsData left_data = {
         .validator = left.leftmost.validator,
         .deposit_index = left.leftmost.deposit_index,
-        .counted = left_counted_data,
+        .is_counted = left_counted_data,
         .is_fictional = left.leftmost.is_fictional,
     };
 
     BoundsData right_data = {
         .validator = right.rightmost.validator,
         .deposit_index = right.rightmost.deposit_index,
-        .counted = left_counted_data,
+        .is_counted = left_counted_data,
         .is_fictional = right.rightmost.is_fictional,
     };
 
     return  { left_data, right_data };
 }
-
 
 static AccumulatedData account_for_double_counting(const AccumulatedData& accumulated_data, const Node& left, const Node& right) {
     if (!pubkeys_are_same_and_are_counted(left.rightmost, right.leftmost)) return accumulated_data;
