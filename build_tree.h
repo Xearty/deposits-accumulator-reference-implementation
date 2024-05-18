@@ -5,7 +5,13 @@
 #include "first_level.h"
 #include "inner_level.h"
 
+static bool is_power_of_2(size_t num) {
+    return num != 0 && !(num & (num - 1));
+}
+
 static Vec<Vec<Node>> build_binary_tree(const Vec<Node>& leaves) {
+    assert(is_power_of_2(leaves.size()));
+
     Vec<Vec<Node>> tree;
     tree.push_back(leaves);
 
