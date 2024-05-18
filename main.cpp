@@ -78,18 +78,15 @@ void update_counted_data(Node& node, const Node& left, const Node& right) {
     Pubkey leftmost_pubkey = left.leftmost.validator.pubkey;
     Pubkey rightmost_pubkey = right.rightmost.validator.pubkey;
 
-    bool leftmost_counted = left.leftmost.counted;
-    leftmost_counted |= has_same_pubkey_and_is_counted(leftmost_pubkey, left.rightmost);
-    leftmost_counted |= has_same_pubkey_and_is_counted(leftmost_pubkey, right.leftmost);
-    leftmost_counted |= has_same_pubkey_and_is_counted(leftmost_counted, right.rightmost);
+    node.leftmost.counted = left.leftmost.counted
+        || has_same_pubkey_and_is_counted(leftmost_pubkey, left.rightmost)
+        || has_same_pubkey_and_is_counted(leftmost_pubkey, right.leftmost)
+        || has_same_pubkey_and_is_counted(leftmost_pubkey, right.rightmost);
 
-    bool rightmost_counted = right.rightmost.counted;
-    rightmost_counted |= has_same_pubkey_and_is_counted(rightmost_pubkey, left.leftmost);
-    rightmost_counted |= has_same_pubkey_and_is_counted(rightmost_pubkey, left.rightmost);
-    rightmost_counted |= has_same_pubkey_and_is_counted(rightmost_pubkey, right.leftmost);
-
-    node.leftmost.counted = leftmost_counted;
-    node.rightmost.counted = rightmost_counted;
+    node.rightmost.counted = right.rightmost.counted
+        || has_same_pubkey_and_is_counted(rightmost_pubkey, left.leftmost)
+        || has_same_pubkey_and_is_counted(rightmost_pubkey, left.rightmost)
+        || has_same_pubkey_and_is_counted(rightmost_pubkey, right.leftmost);
 }
 
 void account_for_double_counting(Node& node, const Node& left, const Node& right) {
