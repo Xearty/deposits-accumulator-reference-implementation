@@ -5,6 +5,12 @@
 #include <stdint.h>
 #include <vector>
 #include <bitset>
+#include <tuple>
+
+// TODO: use tuple for multiple return values and output the partial results from it
+
+template <typename T>
+using Tuple = std::tuple<T>;
 
 template <typename T>
 using Vec = std::vector<T>;
@@ -36,6 +42,7 @@ struct BoundsData {
     ValidatorData validator;
     u64 deposit_index;
     bool counted;
+    bool is_fictional;
 };
 
 struct ValidatorStats {
@@ -46,19 +53,15 @@ struct ValidatorStats {
 
 struct AccumulatedData {
     u64 balance;
+    u64 deposits_count;
     ValidatorStats validator_stats;
 };
 
-struct Range {
-    u64 start;
-    u64 size;
-};
 
 struct Node {
     BoundsData leftmost;
     BoundsData rightmost;
     AccumulatedData accumulated;
-    Range range;
 };
 
 static void debug_print_node(const Node& node) {
@@ -73,9 +76,6 @@ static void debug_print_node(const Node& node) {
     std::cout << ", " << node.accumulated.validator_stats.active_validators_count;
     std::cout << ", " << node.accumulated.validator_stats.exited_validators_count;
     std::cout << "}, ";
-    std::cout << "range: {";
-    std::cout << "start: " << node.range.start << ", ";
-    std::cout << "size: " << node.range.size;
-    std::cout << "}";
+    std::cout << "deposits_count: {" << node.accumulated.deposits_count << "}";
 }
 
