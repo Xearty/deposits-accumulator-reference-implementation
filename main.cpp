@@ -91,61 +91,78 @@ bool pubkeys_are_same_and_are_counted(const BoundsData& first, const BoundsData&
     return pubkeys_are_same && both_are_counted;
 }
 
-void update_counted_data(Node& node, const Node& left, const Node& right) {
+Tuple<bool, bool> calc_counted_data(const Node& left, const Node& right) {
     Pubkey leftmost_pubkey = left.leftmost.validator.pubkey;
     Pubkey rightmost_pubkey = right.rightmost.validator.pubkey;
 
-    node.leftmost.counted = left.leftmost.counted
+    bool leftmost_counted = left.leftmost.counted
         || has_same_pubkey_and_is_counted(leftmost_pubkey, left.rightmost)
         || has_same_pubkey_and_is_counted(leftmost_pubkey, right.leftmost)
         || has_same_pubkey_and_is_counted(leftmost_pubkey, right.rightmost);
 
-    node.rightmost.counted = right.rightmost.counted
+    bool rightmost_counted = right.rightmost.counted
         || has_same_pubkey_and_is_counted(rightmost_pubkey, left.leftmost)
         || has_same_pubkey_and_is_counted(rightmost_pubkey, left.rightmost)
         || has_same_pubkey_and_is_counted(rightmost_pubkey, right.leftmost);
+
+    return { leftmost_counted, rightmost_counted };
 }
 
-void inherit_bounds_data_from_children(Node& node, const Node& left, const Node& right) {
-    node.leftmost.validator = left.leftmost.validator;
-    node.rightmost.validator = right.rightmost.validator;
+Tuple<BoundsData, BoundsData> inherit_bounds_data_from_children(const Node& left, const Node& right) {
+    const auto& [left_counted_data, right_counted_data] = calc_counted_data(left, right);
 
-    node.leftmost.deposit_index = left.leftmost.deposit_index;
-    node.rightmost.deposit_index = right.rightmost.deposit_index;
-
-    node.leftmost.is_fictional = left.leftmost.is_fictional;
-    node.rightmost.is_fictional = right.rightmost.is_fictional;
-
-    update_counted_data(node, left, right);
-}
-
-
-void account_for_double_counting(Node& node, const Node& left, const Node& right) {
-    if (pubkeys_are_same_and_are_counted(left.rightmost, right.leftmost)) {
-        node.accumulated.balance -= left.rightmost.validator.balance;
-
-        node.accumulated.validator_stats.non_activated_validators_count -= left.rightmost.validator.status_bits[NON_ACTIVATED_VALIDATORS_COUNT_BIT];
-        node.accumulated.validator_stats.active_validators_count -= left.rightmost.validator.status_bits[ACTIVE_VALIDATORS_COUNT_BIT];
-        node.accumulated.validator_stats.exited_validators_count -= left.rightmost.validator.status_bits[EXITED_VALIDATORS_COUNT_BIT];
-    }
-}
-
-void accumulate_data(Node& node, const Node& left, const Node& right) {
-    node.accumulated.balance = left.accumulated.balance + right.accumulated.balance;
-
-    node.accumulated.validator_stats = {
-        .non_activated_validators_count =
-            left.accumulated.validator_stats.non_activated_validators_count +
-            right.accumulated.validator_stats.non_activated_validators_count,
-        .active_validators_count =
-            left.accumulated.validator_stats.active_validators_count +
-            right.accumulated.validator_stats.active_validators_count,
-        .exited_validators_count =
-            left.accumulated.validator_stats.exited_validators_count +
-            right.accumulated.validator_stats.exited_validators_count,
+    BoundsData left_data = {
+        .validator = left.leftmost.validator,
+        .deposit_index = left.leftmost.deposit_index,
+        .counted = left_counted_data,
+        .is_fictional = left.leftmost.is_fictional,
     };
 
-    node.accumulated.deposits_count = left.accumulated.deposits_count + right.accumulated.deposits_count;
+    BoundsData right_data = {
+        .validator = right.rightmost.validator,
+        .deposit_index = right.rightmost.deposit_index,
+        .counted = left_counted_data,
+        .is_fictional = right.rightmost.is_fictional,
+    };
+
+    return  { left_data, right_data };
+}
+
+
+AccumulatedData account_for_double_counting(const AccumulatedData& accumulated_data, const Node& left, const Node& right) {
+    if (!pubkeys_are_same_and_are_counted(left.rightmost, right.leftmost)) return accumulated_data;
+
+    u64 balance = accumulated_data.balance - left.rightmost.validator.balance;
+
+    u64 non_activated_validators_count = accumulated_data.validator_stats.non_activated_validators_count - left.rightmost.validator.status_bits[NON_ACTIVATED_VALIDATORS_COUNT_BIT];
+    u64 active_validators_count = accumulated_data.validator_stats.active_validators_count - left.rightmost.validator.status_bits[ACTIVE_VALIDATORS_COUNT_BIT];
+    u64 exited_validators_count = accumulated_data.validator_stats.exited_validators_count - left.rightmost.validator.status_bits[EXITED_VALIDATORS_COUNT_BIT];
+
+    return AccumulatedData {
+        .balance = balance,
+        .deposits_count = accumulated_data.deposits_count,
+        .validator_stats = {
+            .non_activated_validators_count = non_activated_validators_count,
+            .active_validators_count = active_validators_count,
+            .exited_validators_count = exited_validators_count,
+        },
+    };
+}
+
+ValidatorStats accumulate_validator_stats(const ValidatorStats& left, const ValidatorStats& right) {
+    return {
+        .non_activated_validators_count = left.non_activated_validators_count + right.non_activated_validators_count,
+        .active_validators_count = left.active_validators_count + right.active_validators_count,
+        .exited_validators_count = left.exited_validators_count + right.exited_validators_count,
+    };
+}
+
+AccumulatedData accumulate_data(const Node& left, const Node& right) {
+    return {
+        .balance = left.accumulated.balance + right.accumulated.balance,
+        .deposits_count = left.accumulated.deposits_count + right.accumulated.deposits_count,
+        .validator_stats = accumulate_validator_stats(left.accumulated.validator_stats, right.accumulated.validator_stats),
+    };
 }
 
 bool is_zero_proof(const Node& node) {
@@ -153,17 +170,18 @@ bool is_zero_proof(const Node& node) {
 }
 
 Node compute_parent(const Node& left, const Node& right) {
-    Node node;
-
     // ensure all the leaves are sorted by the tuple (pubkey, deposit_index) and deposit indices are unique
     assert(left.rightmost.validator.pubkey <= right.leftmost.validator.pubkey);
     assert(left.rightmost.deposit_index < right.leftmost.deposit_index || is_zero_proof(right));
 
-    inherit_bounds_data_from_children(node, left, right);
-    accumulate_data(node, left, right);
-    account_for_double_counting(node, left, right);
+    const auto& [left_bounds_data, right_bounds_data] = inherit_bounds_data_from_children(left, right);
+    AccumulatedData accumulated_data = account_for_double_counting(accumulate_data(left, right), left, right);
 
-    return node;
+    return Node {
+        .leftmost = left_bounds_data,
+        .rightmost = right_bounds_data,
+        .accumulated = accumulated_data,
+    };
 }
 
 auto build_binary_tree(const Vec<Node>& leaves) {
@@ -222,7 +240,8 @@ int main() {
     push_deposits_with_pubkey(leaves, 5, 10, {1, 1},          active);
     push_deposits_with_pubkey(leaves, 6, 10, {1},             active);
     push_deposits_with_pubkey(leaves, 7, 10, {1, 1, 1},       non_activated);
-    push_fictional_deposits(leaves, 16);
+    push_deposits_with_pubkey(leaves, 8, 10, {0},             non_activated);
+    push_fictional_deposits(leaves, 15);
 
     auto tree = build_binary_tree(leaves);
     for (const auto& level : tree) {

@@ -7,10 +7,8 @@
 #include <bitset>
 #include <tuple>
 
-// TODO: use tuple for multiple return values and output the partial results from it
-
-template <typename T>
-using Tuple = std::tuple<T>;
+template <typename... T>
+using Tuple = std::tuple<T...>;
 
 template <typename T>
 using Vec = std::vector<T>;
