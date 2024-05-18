@@ -17,7 +17,7 @@ static Node create_deposit_leaf(Pubkey pubkey, u64 deposit_index, u64 balance, b
     bool deposit_is_processed = ETH1_DATA_DEPOSIT_COUNT >= deposit_index;
     bool validator_is_definitely_in_chain = signature_is_valid && deposit_is_processed;
 
-    BoundsData bounds_data = BoundsData {
+    BoundsData bounds_data = {
         .validator = ValidatorData {
             .pubkey = pubkey,
             .balance = balance,
