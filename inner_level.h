@@ -32,7 +32,7 @@ static Tuple<bool, bool> calc_counted_data(const Node& left, const Node& right) 
 }
 
 static Tuple<BoundsData, BoundsData> inherit_bounds_data_from_children(const Node& left, const Node& right) {
-    const auto& [left_counted_data, right_counted_data] = calc_counted_data(left, right);
+    const auto [left_counted_data, right_counted_data] = calc_counted_data(left, right);
 
     BoundsData left_data = {
         .validator = left.leftmost.validator,
