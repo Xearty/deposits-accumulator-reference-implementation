@@ -1,6 +1,6 @@
 // clang-format off
 
-#include "util.h"
+#include "build_tree.h"
 
 int main() {
     const auto active = ValidatorEpochData { CURRENT_EPOCH, CURRENT_EPOCH + 1 };
