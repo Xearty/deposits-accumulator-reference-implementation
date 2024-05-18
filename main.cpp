@@ -184,14 +184,14 @@ int main() {
     bool invalid_16[16] = {};
 
     Vec<Node> leaves;
-    push_deposits_with_pubkey<5>(leaves, 1, 10, {0, 1, 1, 0, 1}, active);
-    push_deposits_with_pubkey<1>(leaves, 2, 10, {1},             active);
-    push_deposits_with_pubkey<2>(leaves, 3, 10, {1, 1},          active);
-    push_deposits_with_pubkey<2>(leaves, 4, 10, {1, 1},          exited);
-    push_deposits_with_pubkey<2>(leaves, 5, 10, {1, 1},          active);
-    push_deposits_with_pubkey<1>(leaves, 6, 10, {1},             active);
-    push_deposits_with_pubkey<3>(leaves, 7, 10, {1, 1, 1},       non_activated);
-    push_deposits_with_pubkey<16>(leaves, 0, 0, invalid_16,      non_activated);
+    push_deposits_with_pubkey(leaves, 1, 10, {0, 1, 1, 0, 1}, active);
+    push_deposits_with_pubkey(leaves, 2, 10, {1},             active);
+    push_deposits_with_pubkey(leaves, 3, 10, {1, 1},          active);
+    push_deposits_with_pubkey(leaves, 4, 10, {1, 1},          exited);
+    push_deposits_with_pubkey(leaves, 5, 10, {1, 1},          active);
+    push_deposits_with_pubkey(leaves, 6, 10, {1},             active);
+    push_deposits_with_pubkey(leaves, 7, 10, {1, 1, 1},       non_activated);
+    push_deposits_with_pubkey(leaves, 0, 0,  invalid_16,      non_activated);
 
     auto tree = build_binary_tree(leaves);
     for (const auto& level : tree) {
