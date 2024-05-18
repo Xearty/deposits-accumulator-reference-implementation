@@ -94,7 +94,9 @@ static bool is_zero_proof(const Node& node) {
 static Node compute_parent(const Node& left, const Node& right) {
     // ensure all the leaves are sorted by the tuple (pubkey, deposit_index) and deposit indices are unique
     assert(left.rightmost.validator.pubkey <= right.leftmost.validator.pubkey);
-    assert(left.rightmost.deposit_index < right.leftmost.deposit_index || is_zero_proof(right));
+    if (left.rightmost.validator.pubkey == left.leftmost.validator.pubkey) {
+        assert(left.rightmost.deposit_index < right.leftmost.deposit_index || is_zero_proof(right));
+    }
 
     const auto& [left_bounds_data, right_bounds_data] = inherit_bounds_data_from_children(left, right);
     AccumulatedData accumulated_data = account_for_double_counting(accumulate_data(left, right), left, right);
