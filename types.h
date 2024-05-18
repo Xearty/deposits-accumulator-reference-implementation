@@ -74,6 +74,6 @@ static void debug_print_node(const Node& node) {
     std::cout << ", " << node.accumulated.validator_stats.active_validators_count;
     std::cout << ", " << node.accumulated.validator_stats.exited_validators_count;
     std::cout << "}, ";
-    std::cout << "deposits_count: {" << node.accumulated.deposits_count << "}";
+    std::cout << "deposits_count: " << node.accumulated.deposits_count;
 }
 
